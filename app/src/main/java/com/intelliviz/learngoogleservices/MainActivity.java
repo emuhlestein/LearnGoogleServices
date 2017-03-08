@@ -1,9 +1,15 @@
 package com.intelliviz.learngoogleservices;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.res.Resources;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.View;
@@ -12,9 +18,13 @@ import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.ActivityRecognition;
+import com.google.android.gms.location.DetectedActivity;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -23,10 +33,11 @@ public class MainActivity extends AppCompatActivity implements
 {
     private static final String TAG = MainActivity.class.getSimpleName();
     private GoogleApiClient mGoogleApiClient;
+    private ActivityDetectionBroadcastReceiver mBroadcastReceiver;
     private Location mLastLocation;
     private TextView mLongitudeView;
     private TextView mLatitudeView;
-    private TextView mDetectedActivities;
+    private TextView mStatusText;
     private Button mRequesetUpdatesButton;
     private Button mRemoveRequesetsUpdatesButton;
     private LocationRequest mLocationRequest;
@@ -41,13 +52,15 @@ public class MainActivity extends AppCompatActivity implements
 
         mRemoveRequesetsUpdatesButton = (Button) findViewById(R.id.remove_activity_updates_button);
         mRequesetUpdatesButton = (Button) findViewById(R.id.request_activity_updates_button);
-        mDetectedActivities = (TextView) findViewById(R.id.detectedActivities);
+        mStatusText = (TextView) findViewById(R.id.detectedActivities);
+        mBroadcastReceiver = new ActivityDetectionBroadcastReceiver();
         buildGoogleApiClient();
     }
 
     protected synchronized void buildGoogleApiClient() {
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(LocationServices.API)
+                .addApi(ActivityRecognition.API)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
@@ -74,6 +87,18 @@ public class MainActivity extends AppCompatActivity implements
             mGoogleApiClient.disconnect();
         }
         super.onStop();
+    }
+
+    @Override
+    protected void onPause() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mBroadcastReceiver);
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, new IntentFilter(Constants.BROADCAST_ACTION));
+        super.onResume();
     }
 
     // ConnectionCallbacks interface
@@ -116,5 +141,48 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     public void removeActivityUpdatesButtonHandler(View view) {
+    }
+
+    /**
+     * Returns a human readable String corresponding to a detected activity type.
+     */
+    public String getActivityString(int detectedActivityType) {
+        Resources resources = this.getResources();
+        switch(detectedActivityType) {
+            case DetectedActivity.IN_VEHICLE:
+                return resources.getString(R.string.in_vehicle);
+            case DetectedActivity.ON_BICYCLE:
+                return resources.getString(R.string.on_bicycle);
+            case DetectedActivity.ON_FOOT:
+                return resources.getString(R.string.on_foot);
+            case DetectedActivity.RUNNING:
+                return resources.getString(R.string.running);
+            case DetectedActivity.STILL:
+                return resources.getString(R.string.still);
+            case DetectedActivity.TILTING:
+                return resources.getString(R.string.tilting);
+            case DetectedActivity.UNKNOWN:
+                return resources.getString(R.string.unknown);
+            case DetectedActivity.WALKING:
+                return resources.getString(R.string.walking);
+            default:
+                return resources.getString(R.string.unidentifiable_activity, detectedActivityType);
+        }
+    }
+
+    public class ActivityDetectionBroadcastReceiver extends BroadcastReceiver {
+        public final String TAG = ActivityDetectionBroadcastReceiver.class.getSimpleName();
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            ArrayList<DetectedActivity> detectedActivities = intent.getParcelableArrayListExtra(Constants.ACTIVITY_EXTRA);
+            StringBuilder sb = new StringBuilder();
+            for(DetectedActivity detectedActivity : detectedActivities) {
+                int type = detectedActivity.getType();
+                int confidence = detectedActivity.getConfidence();
+                sb.append(getActivityString(type) + " " + confidence + "%\n");
+            }
+            mStatusText.setText(sb.toString());
+        }
     }
 }
