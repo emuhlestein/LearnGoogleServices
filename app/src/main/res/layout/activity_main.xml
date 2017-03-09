@@ -65,4 +65,14 @@
         android:layout_below="@id/request_activity_updates_button"
         android:id="@+id/detectedActivities" />
 
+    <Button
+        android:id="@+id/add_geofence_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@id/detectedActivities"
+        android:onClick="addGeofenceButtonHandler"
+        android:enabled="true"
+        android:text="@string/add_geofences"/>
+
 </RelativeLayout>
